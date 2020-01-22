@@ -396,7 +396,6 @@ def heuristic(p1, p2):
 def find_neighbors(pos):
     # Return all neighbors of the current node (up, down, left, right)
     x, y = pos[0], pos[1]
-    print(x, y)
     neighbors = []
     if x < rows-1 and Globals.mesh[x + 1][y].wall == False:
         neighbors.append(Globals.mesh[x + 1][y])
@@ -409,10 +408,29 @@ def find_neighbors(pos):
     return neighbors
 
 
+def draw_path(node):
+    path = []
+    print('SEARCH FINISHED')
+    # generate path
+    while node.parent:
+        print
+        if node != Globals.end:
+            path.append(node)
+        node = node.parent
+    # draw path
+    for node in path[::-1]:
+        pygame.event.get()
+        CLOCK.tick(360)
+        node.show(blue, 0)
+    # Display final path until Globals.window is closed
+    while True:
+        return end_screen()
+
+
 def unweighted_algorithms():
     Globals.fps = 0
     Globals.open_set = [Globals.start]
-    
+    queue = []
     def dfs():
         while Globals.open_set:
             pygame.event.get()
@@ -423,21 +441,8 @@ def unweighted_algorithms():
                 current.displayed = False
 
             elif current == Globals.end:
-                path = []
-                print('SEARCH FINISHED')
-                # generate path
-                while current.parent:
-                    if current != Globals.end:
-                        path.append(current)
-                    current = current.parent
-                # draw path
-                for node in path[::-1]:
-                    pygame.event.get()
-                    CLOCK.tick(120)
-                    node.show(blue, 0)
-                # Display final path until Globals.window is closed
-                while True:
-                    return end_screen()
+                # End node reached. Draw path on the screen.
+                return draw_path(current)
 
             for node in Globals.closed_set:
                 if node != Globals.start and node != Globals.end and not node.displayed:
@@ -447,19 +452,23 @@ def unweighted_algorithms():
             if current not in Globals.closed_set:
                 Globals.closed_set.append(current)
                 neighbors = find_neighbors(current.pos)
-                for ng in neighbors:
+                for i, ng in enumerate(neighbors):
                     if ng not in Globals.closed_set:
-                        Globals.open_set.append(ng)
+                        if i == 0:
+                            Globals.open_set.append(ng)
+                        else:
+                            # Queue of nodes to search if the first neighbor will fail
+                            queue.append(ng)
                         ng.parent = current
-                        dfs()
-
-        
+            
+            if not Globals.open_set:
+                # If open_set is empty take last element from the queue
+                Globals.open_set.append(queue.pop(-1))
 
         return (None, True)
     
     if Globals.dfs:
         return dfs()
-    
 
 
 def weighted_algorithms():
@@ -486,21 +495,8 @@ def weighted_algorithms():
         
         # goal node reached. Draw path.
         elif current == Globals.end:
-            path = []
-            print('SEARCH FINISHED')
-            # generate path
-            while current.parent:
-                if current != Globals.end:
-                    path.append(current)
-                current = current.parent
-            # draw path
-            for node in path[::-1]:
-                pygame.event.get()
-                CLOCK.tick(0)
-                node.show(blue, 0)
-            # Display final path until Globals.window is closed
-            while True:
-                return end_screen()
+            # End node reached. Draw path on the screen.
+            return draw_path(current)
 
         # pop current node from open set and append it to closed set
         Globals.open_set.pop(best_index)
@@ -529,8 +525,7 @@ def weighted_algorithms():
                 neighbor.f = neighbor.h + neighbor.g
             
             elif Globals.dijkstra:
-                neighbor.h = 0
-                neighbor.f = neighbor.h + neighbor.g
+                neighbor.f = neighbor.g
             
             elif Globals.bfs:
                 neighbor.f = heuristic(neighbor.pos, Globals.end.pos)
