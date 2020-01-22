@@ -1,7 +1,6 @@
 import pygame
 import sys
 import numpy as np
-from time import sleep
 
 
 pygame.init()
@@ -13,8 +12,8 @@ width = 800 + right_panel
 height = 800
 cols = 50
 rows = 50
-w = (width - right_panel) / cols
-h = height / rows
+w = (width - right_panel) / rows
+h = height / cols
 
 red    = (255, 0, 0)
 green  = (0, 255, 0)
@@ -24,7 +23,7 @@ grey   = (220, 220, 220)
 white  = (255, 255, 255)
 yellow = (255,255,0)
 violet = (255, 0, 255)
-
+sys.setrecursionlimit(2500)
 
 class Node:
     """
@@ -112,17 +111,17 @@ class Button:
 
 class Globals:
     """
-    This class is used to store global variables.
-    It allows to acces needed variables when needed in an easy way
+    Storage for global variables
     """
-
     a_star = False
     dijkstra = False
     bfs = False
-    mesh = [[Node(pos=[i, j]) for j in range(rows)] for i in range(cols)]
+    dfs = False
+
+    mesh = [[Node(pos=[i, j]) for j in range(cols)] for i in range(rows)]
     fps = 0
-    start = mesh[20][20]
-    end = mesh[20][30]
+    start = mesh[0][0]
+    end = mesh[rows-1][cols-1]
     open_set = []
     closed_set = []
     window = pygame.display.set_mode((width,height))
@@ -135,10 +134,11 @@ class Globals:
         Globals.a_star = False
         Globals.dijkstra = False
         Globals.bfs = False
+        Globals.dfs = False
         Globals.open_set = []
         Globals.closed_set = []
         if not again:
-            Globals.mesh = [[Node(pos=[i, j]) for j in range(rows)] for i in range(cols)]
+            Globals.mesh = [[Node(pos=[i, j]) for j in range(cols)] for i in range(rows)]
 
 
 def restart():
@@ -152,34 +152,19 @@ def restart():
     draw_screen()
 
 
-def find_neighbors(pos):
-    # Return all neighbors of the current node
-    x, y = pos[0], pos[1]
-    neighbors = []
-    if x < cols-1 and Globals.mesh[x + 1][y].wall == False:
-        neighbors.append(Globals.mesh[x + 1][y])
-    if x > 0 and Globals.mesh[x - 1][y].wall == False:
-        neighbors.append(Globals.mesh[x - 1][y])
-    if y < rows-1 and Globals.mesh[x][y + 1].wall == False:
-        neighbors.append(Globals.mesh[x][y + 1])
-    if y > 0 and Globals.mesh[x][y - 1].wall == False:
-        neighbors.append(Globals.mesh[x][y - 1])
-        
-    return neighbors
-
-
 def setup():
     # Setup the mesh on the screen and show the start and end nodes
-
     # create 2d array with squares
-    Globals.mesh = [[Node(pos=[i, j]) for j in range(rows)] for i in range(cols)]
+    Globals.mesh = [[Node(pos=[i, j]) for j in range(cols)] for i in range(rows)]
     Globals.start.show(violet, 0)
     Globals.end.show(yellow, 0)
 
     # show mesh
-    for i in range(cols):
-        for j in range(rows):
+    for i in range(rows):
+        for j in range(cols):
             Globals.mesh[i][j].show(white, 1)
+    pygame.display.update()
+
 
 
 def lmb(square):
@@ -238,8 +223,8 @@ def drag_and_drop(node_to_move, x, y):
 def get_mouse_pos():
     #Return position of the mouse on the screen
     pos = pygame.mouse.get_pos()
-    x = pos[0] // ((width - right_panel) // cols)
-    y = pos[1] // (height // rows)
+    x = pos[0] // ((width - right_panel) // rows)
+    y = pos[1] // (height // cols)
     return (x, y)
 
 
@@ -276,6 +261,13 @@ def draw_screen():
                     bfs_butt.color = green
                     bfs_butt.show(Globals.window)
                     Globals.bfs = True
+                    draw = False
+                    break
+                # Start Depth Fisrt Search
+                elif dfs_butt.is_focus(pos):
+                    dfs_butt.color = green
+                    dfs_butt.show(Globals.window)
+                    Globals.dfs = True
                     draw = False
                     break
                 # Remove all the walls
@@ -377,8 +369,9 @@ def end_screen():
                 
                 elif clear_butt.is_focus(pos):
                     Globals.restart(True)
-                    for i in range(cols):
-                        for j in range(rows):
+                    for i in range(rows):
+                        for j in range(cols):
+                            # redraw nodes that are not walls or end or start 
                             square = Globals.mesh[i][j]
                             if square != Globals.start and square != Globals.end and not square.wall:
                                 square.displayed = False
@@ -392,11 +385,84 @@ def end_screen():
 def heuristic(p1, p2):
     # heuristic function for search algorithms
 
-    # return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) # manhatan dist
-    return 1.05 * np.linalg.norm(np.array(p1) - np.array(p2)) # euclid dist 
+    # Manhatan Distance
+    # return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1]) 
+
+    # Euclidean Distance
+    # High alpha to prioritize "diagonal" moves
+    return 1.41 * np.linalg.norm(np.array(p1) - np.array(p2)) # 
 
 
-def path_finding():
+def find_neighbors(pos):
+    # Return all neighbors of the current node (up, down, left, right)
+    x, y = pos[0], pos[1]
+    print(x, y)
+    neighbors = []
+    if x < rows-1 and Globals.mesh[x + 1][y].wall == False:
+        neighbors.append(Globals.mesh[x + 1][y])
+    if x > 0 and Globals.mesh[x - 1][y].wall == False:
+        neighbors.append(Globals.mesh[x - 1][y])
+    if y < cols-1 and Globals.mesh[x][y + 1].wall == False:
+        neighbors.append(Globals.mesh[x][y + 1])
+    if y > 0 and Globals.mesh[x][y - 1].wall == False:
+        neighbors.append(Globals.mesh[x][y - 1])
+    return neighbors
+
+
+def unweighted_algorithms():
+    Globals.fps = 0
+    Globals.open_set = [Globals.start]
+    
+    def dfs():
+        while Globals.open_set:
+            pygame.event.get()
+            current = Globals.open_set.pop(0)
+            # show current node as a blue square
+            if current != Globals.start and current != Globals.end:
+                current.show(blue, 0)
+                current.displayed = False
+
+            elif current == Globals.end:
+                path = []
+                print('SEARCH FINISHED')
+                # generate path
+                while current.parent:
+                    if current != Globals.end:
+                        path.append(current)
+                    current = current.parent
+                # draw path
+                for node in path[::-1]:
+                    pygame.event.get()
+                    CLOCK.tick(120)
+                    node.show(blue, 0)
+                # Display final path until Globals.window is closed
+                while True:
+                    return end_screen()
+
+            for node in Globals.closed_set:
+                if node != Globals.start and node != Globals.end and not node.displayed:
+                    node.displayed = True
+                    node.show(red, 0)
+
+            if current not in Globals.closed_set:
+                Globals.closed_set.append(current)
+                neighbors = find_neighbors(current.pos)
+                for ng in neighbors:
+                    if ng not in Globals.closed_set:
+                        Globals.open_set.append(ng)
+                        ng.parent = current
+                        dfs()
+
+        
+
+        return (None, True)
+    
+    if Globals.dfs:
+        return dfs()
+    
+
+
+def weighted_algorithms():
     # Finding the path with chosen algorithm
 
     # Start searching
@@ -473,19 +539,20 @@ def path_finding():
             if node != Globals.start and node != Globals.end and not node.displayed:
                 node.displayed = True
                 node.show(green, 0)
-
         for node in Globals.closed_set:
             if node != Globals.start and node != Globals.end and not node.displayed:
                 node.displayed = True
                 node.show(red, 0)
     return (None, False)
 # Create buttons
-djikstra_butt = Button(green, width - right_panel / 2 - 80, 40 , 160, 80, text='Dijkstra')
-astar_butt    = Button(green, width - right_panel / 2 - 80, 150, 160, 80, text='A*')
-bfs_butt      = Button(green, width - right_panel / 2 - 80, 260, 160, 80, text='Best First')
-clear_butt    = Button(green, width - right_panel / 2 - 80, 560, 160, 80, text='Clear Path')
-redraw_butt   = Button(green, width - right_panel / 2 - 80, 670, 160, 80, text='Redraw')
-buttons = [djikstra_butt, astar_butt, redraw_butt, bfs_butt]
+djikstra_butt = Button(green, width - right_panel / 2 - 80, 40        , 160, 80, text='Dijkstra')
+astar_butt    = Button(green, width - right_panel / 2 - 80, 150       , 160, 80, text='A*')
+bfs_butt      = Button(green, width - right_panel / 2 - 80, 260       , 160, 80, text='Best First')
+dfs_butt      = Button(green, width - right_panel / 2 - 80, 370       , 160, 80, text='Depth First')
+clear_butt    = Button(green, width - right_panel / 2 - 80, height-240, 160, 80, text='Clear Path')
+redraw_butt   = Button(green, width - right_panel / 2 - 80, height-130, 160, 80, text='Redraw')
+
+buttons = [djikstra_butt, astar_butt, redraw_butt, bfs_butt, dfs_butt]
 for button in buttons:
     button.show(Globals.window)
 
@@ -500,8 +567,13 @@ def main():
         # make sure start and end are not walls
         Globals.start.wall = False
         Globals.end.wall = False
+        
+        if Globals.dfs:
+            play, clear_path = unweighted_algorithms()
 
-        play, clear_path = path_finding()
+        elif Globals.a_star or Globals.dijkstra or Globals.bfs:
+            play, clear_path = weighted_algorithms()
+        
         if play == None and clear_path:
             play, clear_path = end_screen()
 
